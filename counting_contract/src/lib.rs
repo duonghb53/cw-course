@@ -1,5 +1,7 @@
 mod contract;
 pub mod msg;
+mod state;
+use msg::InstantiateMsg;
 
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
@@ -7,11 +9,13 @@ use cosmwasm_std::{
 
 #[entry_point]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: Empty,
+    msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    contract::instantiate(deps, msg.counter)?;
+
     Ok(Response::new())
 }
 
@@ -26,7 +30,7 @@ pub fn query(_deps: Deps, _env: Env, _msg: msg::QueryMsg) -> StdResult<Binary> {
     use msg::QueryMsg::*;
 
     match _msg {
-        Value { value } => to_binary(&query::value(value + 1)),
+        Value {} => to_binary(&query::value(_deps)?),
     }
 }
 
@@ -34,7 +38,7 @@ pub fn query(_deps: Deps, _env: Env, _msg: msg::QueryMsg) -> StdResult<Binary> {
 mod test {
     use crate::{
         execute, instantiate,
-        msg::{QueryMsg, ValueResponse},
+        msg::{InstantiateMsg, QueryMsg, ValueResponse},
         query,
     };
     use cosmwasm_std::{Addr, Empty};
@@ -55,7 +59,7 @@ mod test {
             .instantiate_contract(
                 contract_id,
                 Addr::unchecked("sender"),
-                &Empty {},
+                &InstantiateMsg { counter: 100 },
                 &[],
                 "Counting Contract",
                 None,
@@ -64,9 +68,9 @@ mod test {
 
         let resp: ValueResponse = app
             .wrap()
-            .query_wasm_smart(contract_addr, &QueryMsg::Value { value: 1 })
+            .query_wasm_smart(contract_addr, &QueryMsg::Value {})
             .unwrap();
 
-        assert_eq!(resp, ValueResponse { value: 2 });
+        assert_eq!(resp, ValueResponse { value: 100 });
     }
 }
