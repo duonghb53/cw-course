@@ -1,11 +1,13 @@
 mod contract;
 pub mod msg;
 mod state;
-use msg::InstantiateMsg;
+use msg::{ExecMsg, InstantiateMsg};
 
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
+
+use crate::contract::exec;
 
 #[entry_point]
 pub fn instantiate(
@@ -20,17 +22,19 @@ pub fn instantiate(
 }
 
 #[entry_point]
-pub fn execute(_deps: DepsMut, _env: Env, _info: MessageInfo, _msg: Empty) -> StdResult<Response> {
-    todo!()
+pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecMsg) -> StdResult<Response> {
+    match msg {
+        ExecMsg::Poke {} => exec::poke(deps, info),
+    }
 }
 
 #[entry_point]
-pub fn query(_deps: Deps, _env: Env, _msg: msg::QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: msg::QueryMsg) -> StdResult<Binary> {
     use contract::query;
     use msg::QueryMsg::*;
 
-    match _msg {
-        Value {} => to_binary(&query::value(_deps)?),
+    match msg {
+        Value {} => to_binary(&query::value(deps)?),
     }
 }
 
@@ -38,10 +42,10 @@ pub fn query(_deps: Deps, _env: Env, _msg: msg::QueryMsg) -> StdResult<Binary> {
 mod test {
     use crate::{
         execute, instantiate,
-        msg::{InstantiateMsg, QueryMsg, ValueResponse},
+        msg::{ExecMsg, InstantiateMsg, QueryMsg, ValueResponse},
         query,
     };
-    use cosmwasm_std::{Addr, Empty};
+    use cosmwasm_std::{Addr, Empty, Response};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
     fn counting_contract() -> Box<dyn Contract<Empty>> {
@@ -72,5 +76,36 @@ mod test {
             .unwrap();
 
         assert_eq!(resp, ValueResponse { value: 100 });
+    }
+
+    #[test]
+    fn poke() {
+        let mut app = App::default();
+        let contract_id = app.store_code(counting_contract());
+
+        let contract_addr = app
+            .instantiate_contract(
+                contract_id,
+                Addr::unchecked("sender"),
+                &InstantiateMsg { counter: 0 },
+                &[],
+                "Counting Contract",
+                None,
+            )
+            .unwrap();
+        app.execute_contract(
+            Addr::unchecked("sender"),
+            contract_addr.clone(),
+            &ExecMsg::Poke {},
+            &[],
+        )
+        .unwrap();
+
+        let resp: ValueResponse = app
+            .wrap()
+            .query_wasm_smart(contract_addr, &QueryMsg::Value {})
+            .unwrap();
+
+        assert_eq!(resp, ValueResponse { value: 1 });
     }
 }

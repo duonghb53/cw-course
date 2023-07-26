@@ -16,6 +16,12 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum ExecMsg {
+    Poke {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct ValueResponse {
     pub value: u64,
 }
