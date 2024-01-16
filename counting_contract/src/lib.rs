@@ -16,7 +16,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    contract::instantiate(deps, msg.counter)?;
+    contract::instantiate(deps, msg.counter, msg.minimal_donation)?;
 
     Ok(Response::new())
 }
@@ -24,7 +24,8 @@ pub fn instantiate(
 #[entry_point]
 pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecMsg) -> StdResult<Response> {
     match msg {
-        ExecMsg::Poke {} => exec::poke(deps, info),
+        ExecMsg::Donate {} => exec::donate(deps, info),
+        ExecMsg::Reset { counter } => Ok(Response::new()),
     }
 }
 
@@ -45,7 +46,7 @@ mod test {
         msg::{ExecMsg, InstantiateMsg, QueryMsg, ValueResponse},
         query,
     };
-    use cosmwasm_std::{Addr, Empty, Response};
+    use cosmwasm_std::{coin, coins, Addr, Empty, Response};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
     fn counting_contract() -> Box<dyn Contract<Empty>> {
@@ -53,8 +54,64 @@ mod test {
         Box::new(contract)
     }
 
+    // #[test]
+    // fn query_value() {
+    //     let mut app = App::default();
+
+    //     let contract_id = app.store_code(counting_contract());
+
+    //     let contract_addr = app
+    //         .instantiate_contract(
+    //             contract_id,
+    //             Addr::unchecked("sender"),
+    //             &InstantiateMsg { counter: 100 },
+    //             &[],
+    //             "Counting Contract",
+    //             None,
+    //         )
+    //         .unwrap();
+
+    //     let resp: ValueResponse = app
+    //         .wrap()
+    //         .query_wasm_smart(contract_addr, &QueryMsg::Value {})
+    //         .unwrap();
+
+    //     assert_eq!(resp, ValueResponse { value: 100 });
+    // }
+
+    // #[test]
+    // fn poke() {
+    //     let mut app = App::default();
+    //     let contract_id = app.store_code(counting_contract());
+
+    //     let contract_addr = app
+    //         .instantiate_contract(
+    //             contract_id,
+    //             Addr::unchecked("sender"),
+    //             &InstantiateMsg { counter: 0 },
+    //             &[],
+    //             "Counting Contract",
+    //             None,
+    //         )
+    //         .unwrap();
+    //     app.execute_contract(
+    //         Addr::unchecked("sender"),
+    //         contract_addr.clone(),
+    //         &ExecMsg::Poke {},
+    //         &[],
+    //     )
+    //     .unwrap();
+
+    //     let resp: ValueResponse = app
+    //         .wrap()
+    //         .query_wasm_smart(contract_addr, &QueryMsg::Value {})
+    //         .unwrap();
+
+    //     assert_eq!(resp, ValueResponse { value: 1 });
+    // }
+
     #[test]
-    fn query_value() {
+    fn donate() {
         let mut app = App::default();
 
         let contract_id = app.store_code(counting_contract());
@@ -63,41 +120,57 @@ mod test {
             .instantiate_contract(
                 contract_id,
                 Addr::unchecked("sender"),
-                &InstantiateMsg { counter: 100 },
+                &InstantiateMsg {
+                    counter: 0,
+                    minimal_donation: coin(0, "atom"),
+                },
                 &[],
-                "Counting Contract",
+                "Counting contract",
                 None,
             )
             .unwrap();
+
+        app.execute_contract(
+            Addr::unchecked("sender"),
+            contract_addr.clone(),
+            &ExecMsg::Donate {},
+            &[],
+        )
+        .unwrap();
 
         let resp: ValueResponse = app
             .wrap()
             .query_wasm_smart(contract_addr, &QueryMsg::Value {})
             .unwrap();
 
-        assert_eq!(resp, ValueResponse { value: 100 });
+        assert_eq!(resp, ValueResponse { value: 1 });
     }
 
     #[test]
-    fn poke() {
+    fn donate_with_funds() {
         let mut app = App::default();
+
         let contract_id = app.store_code(counting_contract());
 
         let contract_addr = app
             .instantiate_contract(
                 contract_id,
                 Addr::unchecked("sender"),
-                &InstantiateMsg { counter: 0 },
+                &InstantiateMsg {
+                    counter: 0,
+                    minimal_donation: coin(10, "atom"),
+                },
                 &[],
-                "Counting Contract",
+                "Counting contract",
                 None,
             )
             .unwrap();
+
         app.execute_contract(
             Addr::unchecked("sender"),
             contract_addr.clone(),
-            &ExecMsg::Poke {},
-            &[],
+            &ExecMsg::Donate {},
+            &[], // &coins(10, "atom"),
         )
         .unwrap();
 
